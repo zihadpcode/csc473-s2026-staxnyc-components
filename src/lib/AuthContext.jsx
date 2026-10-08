@@ -1,47 +1,93 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { getProfile } from './auth'
-
 const AuthContext = createContext(null)
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-
+  const [profileState, setProfileState] = useState({
+    owner: null,
+    data: null,
+    loading: false,
+    error: '',
+  })
+  const [sessionLoading, setSessionLoading] = useState(Boolean(supabase))
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+    if (!supabase) return
+    let active = true
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setUser(session?.user ?? null)
+        setSessionLoading(false)
+      }
     })
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-    return () => sub.subscription.unsubscribe()
+    return () => {
+      active = false
+      data.subscription.unsubscribe()
+    }
   }, [])
-
   useEffect(() => {
-    if (!user) { setProfile(null); return }
-    getProfile(user.id).then(setProfile).catch((e) => {
-      console.error('getProfile failed', e); setProfile(null)
-    })
-  }, [user])
-
-  const value = {
-    user,
-    profile,
-    loading,
-    isAdmin: profile?.role === 'admin',
-    refreshProfile: async () => {
-      if (user) setProfile(await getProfile(user.id))
-    },
-  }
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    if (!user) {
+      setProfileState({ owner: null, data: null, loading: false, error: '' })
+      return
+    }
+    let active = true
+    setProfileState({ owner: user.id, data: null, loading: true, error: '' })
+    getProfile(user.id)
+      .then((data) => {
+        if (active)
+          setProfileState({
+            owner: user.id,
+            data,
+            loading: false,
+            error: data ? '' : 'Your account profile has not been created yet.',
+          })
+      })
+      .catch((error) => {
+        if (active)
+          setProfileState({
+            owner: user.id,
+            data: null,
+            loading: false,
+            error: error.message || 'Your profile is unavailable.',
+          })
+      })
+    return () => {
+      active = false
+    }
+  }, [user?.id])
+  const profile =
+    user && profileState.owner === user.id ? profileState.data : null
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading:
+          sessionLoading ||
+          Boolean(
+            user && (profileState.owner !== user.id || profileState.loading),
+          ),
+        profileError: profileState.error,
+        isAdmin: profile?.role === 'admin',
+        refreshProfile: async () => {
+          if (user) {
+            const data = await getProfile(user.id)
+            setProfileState({
+              owner: user.id,
+              data,
+              loading: false,
+              error: data
+                ? ''
+                : 'Your account profile has not been created yet.',
+            })
+          }
+        },
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }
-
 export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')
-  return ctx
+  return useContext(AuthContext)
 }

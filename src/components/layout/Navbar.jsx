@@ -1,54 +1,108 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
+import { usePlayerStack } from '../../hooks/usePlayerStack'
 import { signOut } from '../../lib/auth'
-
-function NavLink({ to, label, pathname, matchPrefix = false }) {
-  const active = matchPrefix ? pathname.startsWith(to) : pathname === to
-  return <Link to={to} className={active ? 'active' : ''}>{label}</Link>
-}
-
 export default function Navbar() {
+  const { user, isAdmin } = useAuth()
+  const { ids } = usePlayerStack()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, profile, isAdmin } = useAuth()
-
-  async function handleLogout() {
-    await signOut()
-    navigate('/')
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
+  useEffect(() => {
+    const close = (e) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [])
+  async function logout() {
+    try {
+      await signOut()
+      navigate('/')
+    } catch {
+      setError('Could not log out. Please try again.')
+    }
   }
-
+  const links = [
+    ['/', 'Overview', '↗'],
+    ['/players', 'Players', '◎'],
+    ['/stack', 'My stack', '▤'],
+    ['/compare', 'Compare', '⇄'],
+    ['/live-games', 'Game center', '◷'],
+    ['/standings', 'Standings', '▥'],
+    ['/highlights', 'Highlights', '▷'],
+  ]
   return (
-    <header className="navbar">
-      <div className="container nav-content">
-        <Link to="/" className="brand">
-          <div className="brand-badge">🏀</div>
-          <span>StaxNYC Predictor</span>
+    <>
+      <header className="mobile-header">
+        <Link to="/" className="wordmark">
+          STAX<span>NYC</span>
         </Link>
-
-        <nav className="nav-links" aria-label="Main navigation">
-          <NavLink to="/" label="Home" pathname={pathname} />
-          <NavLink to="/live-games" label="Live Games" pathname={pathname} />
-          <NavLink to="/standings" label="Standings" pathname={pathname} />
-          <NavLink to="/compare" label="Compare" pathname={pathname} />
-          <NavLink to="/highlights" label="Highlights" pathname={pathname} />
-          {user && <NavLink to="/profile" label="Profile" pathname={pathname} />}
-          {isAdmin && <NavLink to="/admin" label="Admin" pathname={pathname} matchPrefix />}
+        <button
+          className="btn-ghost"
+          aria-controls="site-navigation"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? 'Close' : 'Menu'}
+        </button>
+      </header>
+      <aside className={'sidebar' + (open ? ' is-open' : '')}>
+        <Link to="/" className="wordmark">
+          STAX<span>NYC</span>
+          <small>BASKETBALL INTELLIGENCE</small>
+        </Link>
+        <p className="nav-caption">WORKSPACE</p>
+        <nav id="site-navigation" aria-label="Main navigation">
+          {links.map(([to, label, icon]) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                'side-link' + (isActive ? ' active' : '')
+              }
+            >
+              <span aria-hidden="true">{icon}</span>
+              {label}
+              {to === '/stack' && <b>{ids.length}</b>}
+            </NavLink>
+          ))}
+          {isAdmin && (
+            <NavLink to="/admin" className="side-link">
+              Admin
+            </NavLink>
+          )}
         </nav>
-
-        <div className="nav-user">
+        <div className="sidebar-bottom">
+          <p>
+            Built for the love
+            <br />
+            of the game.
+          </p>
           {user ? (
             <>
-              <span className="user-chip" title={user.email}>
-                <span className="user-dot" />
-                {profile?.display_name || user.email.split('@')[0]}
-              </span>
-              <button className="btn-ghost" onClick={handleLogout}>Log out</button>
+              <Link className="btn-ghost" to="/profile">
+                Your account
+              </Link>
+              <button className="btn-ghost" onClick={logout}>
+                Log out
+              </button>
             </>
           ) : (
-            <Link to="/login" className="btn-ghost">Log in</Link>
+            <Link className="btn primary" to="/login">
+              Log in <span aria-hidden="true">↗</span>
+            </Link>
           )}
+          {error && <p role="alert">{error}</p>}
+          <small>NEW YORK · EVERY COURT</small>
         </div>
-      </div>
-    </header>
+      </aside>
+    </>
   )
 }

@@ -1,158 +1,207 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import RadarChart, { STAT_KEYS } from '../components/player/RadarChart'
-import ComparePlayerCard, { normalizeHex } from '../components/compare/ComparePlayerCard'
-import PlayerPickerModal from '../components/common/PlayerPickerModal'
-import { getPlayerById, searchPlayers } from '../lib/api'
-import './ComparePage.css'
-
+import PageHeading from '../components/common/PageHeading'
+import FeedState from '../components/common/FeedState'
+import useResource from '../hooks/useResource'
+import { getPlayerDirectory } from '../lib/api'
+import { formatStat } from '../lib/playerUtils'
+const colors = ['#f47b40', '#9cbcf7', '#b5d49a', '#d9adf4']
 export default function ComparePage() {
-  const [cards, setCards] = useState([])
-  const [nextSlotId, setNextSlotId] = useState(1)
-  const [justAddedSlotId, setJustAddedSlotId] = useState(null)
-
-  const [isPickerOpen, setIsPickerOpen] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const ids = [
+    ...new Set((params.get('players') || '').split(',').filter(Boolean)),
+  ].slice(0, 4)
+  const feed = useResource(getPlayerDirectory)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState([])
-
-  const [chartVisible, setChartVisible] = useState({})
-  const [playerColors, setPlayerColors] = useState({})
-
-  function handleSearch(q) {
-    setQuery(q)
-    if (!q.trim()) { setResults([]); return }
-    const timer = setTimeout(async () => {
-      const data = await searchPlayers(q)
-      setResults(data || [])
-    }, 300)
-    return () => clearTimeout(timer)
-  }
-
-  const usedIds = useMemo(() => {
-    const used = {}
-    cards.forEach(c => { used[c.player.player_id] = true })
-    return used
-  }, [cards])
-
-  const comparedPlayers = useMemo(() => cards.map(c => c.player), [cards])
-
-  const visiblePlayers = useMemo(() => {
-    return comparedPlayers.filter(p => chartVisible[p.player_id] !== false)
-  }, [comparedPlayers, chartVisible])
-
-  const radarSeries = useMemo(() => {
-    const scaleGroup = visiblePlayers.length > 0 ? visiblePlayers : comparedPlayers
-    return comparedPlayers.map(p => {
-      const norms = STAT_KEYS.map(key => {
-        const val = parseFloat(p[key]) || 0
-        let max = 0
-        scaleGroup.forEach(sp => {
-          const sv = parseFloat(sp[key]) || 0
-          if (sv > max) max = sv
-        })
-        if (max === 0) max = 1
-        return val / max
-      })
-      return {
-        playerId: p.player_id,
-        name: p.player_name,
-        normValues: norms,
-        color: playerColors[p.player_id] || '#5b8cff',
-        visible: chartVisible[p.player_id] !== false,
-      }
-    })
-  }, [comparedPlayers, visiblePlayers, chartVisible, playerColors])
-
-  async function addPlayer(playerId) {
-    if (usedIds[playerId]) return
-    const data = await getPlayerById(playerId)
-    if (!data) return
-    const slotId = nextSlotId
-    setNextSlotId(slotId + 1)
-    setCards(prev => [...prev, { slotId, player: data }])
-    setChartVisible(prev => ({ ...prev, [playerId]: true }))
-    setPlayerColors(prev => ({ ...prev, [playerId]: '#5b8cff' }))
-    setJustAddedSlotId(slotId)
-    setTimeout(() => setJustAddedSlotId(null), 350)
-    setIsPickerOpen(false)
+  const [hidden, setHidden] = useState([])
+  const players = feed.data || []
+  const compared = ids
+    .map((id) => players.find((p) => String(p.player_id) === id))
+    .filter(Boolean)
+  const available = useMemo(
+    () =>
+      players
+        .filter(
+          (p) =>
+            !ids.includes(String(p.player_id)) &&
+            (p.player_name || '')
+              .toLowerCase()
+              .includes(query.trim().toLowerCase()),
+        )
+        .slice(0, 10),
+    [players, params, query],
+  )
+  function select(next) {
+    setParams(next.length ? { players: next.join(',') } : {})
     setQuery('')
-    setResults([])
   }
-
-  function removePlayer(playerId) {
-    setCards(prev => prev.filter(c => c.player.player_id !== playerId))
-  }
-
-  function openPicker() {
-    setQuery('')
-    setResults([])
-    setIsPickerOpen(true)
-  }
-
+  const series = compared.map((player, index) => ({
+    playerId: player.player_id,
+    name: player.player_name,
+    color: colors[index],
+    visible: !hidden.includes(String(player.player_id)),
+    normValues: STAT_KEYS.map((key) => {
+      const maximum = Math.max(...compared.map((p) => Number(p[key]) || 0), 1)
+      return (Number(player[key]) || 0) / maximum
+    }),
+  }))
   return (
     <main className="container">
-      <section className="page-header">
-        <p className="breadcrumb">Players / <span>Compare</span></p>
-      </section>
-
-      <section className="card panel compare-header">
-        <div>
-          <h1 className="page-title">Compare Players</h1>
-          <p className="page-subtitle">
-            Add players to see their stats overlaid on one radar chart. Use the color picker and "On chart" toggle to customize.
-          </p>
-        </div>
-      </section>
-
-      <section className="card panel radar-chart-panel">
-        <div className="radar-chart-heading">
-          <h2 className="radar-chart-title">Comparison Radar</h2>
-          <p className="radar-chart-sub">PPG &middot; RPG &middot; APG &middot; FG%</p>
-        </div>
-        {comparedPlayers.length === 0 ? (
-          <p className="radar-empty-hint radar-empty-hint--solo">Add players below to see overlapping radars.</p>
-        ) : (
-          <RadarChart series={radarSeries} />
-        )}
-        {comparedPlayers.length > 0 && visiblePlayers.length === 0 && (
-          <p className="radar-empty-hint">Turn on "On chart" for at least one player.</p>
-        )}
-      </section>
-
-      <section className="compare-row">
-        {cards.map(c => (
-          <ComparePlayerCard
-            key={'slot-' + c.slotId}
-            slotId={c.slotId}
-            player={c.player}
-            isJustAdded={justAddedSlotId === c.slotId}
-            onChart={chartVisible[c.player.player_id] !== false}
-            cardColor={playerColors[c.player.player_id] || '#5b8cff'}
-            onToggleChart={() => setChartVisible(prev => ({ ...prev, [c.player.player_id]: prev[c.player.player_id] === false }))}
-            onColorChange={hex => setPlayerColors(prev => ({ ...prev, [c.player.player_id]: normalizeHex(hex) }))}
-            onColorReset={() => setPlayerColors(prev => ({ ...prev, [c.player.player_id]: '#5b8cff' }))}
-            onRemove={() => removePlayer(c.player.player_id)}
-          />
-        ))}
-
-        <button type="button" className="card panel add-card" onClick={openPicker}>
-          <span className="plus">+</span>
-          <span className="add-label">Add player</span>
-          <span className="add-hint">Search &amp; compare stats</span>
-        </button>
-      </section>
-
-      {isPickerOpen && (
-        <PlayerPickerModal
-          query={query}
-          results={results}
-          usedIds={usedIds}
-          onSearch={handleSearch}
-          onSelect={addPlayer}
-          onClose={() => setIsPickerOpen(false)}
-        />
+      <PageHeading eyebrow="SIDE BY SIDE" title="Compare the details.">
+        Choose up to four players. Compare their season averages on a common
+        scale, then look at the raw numbers.
+      </PageHeading>
+      {feed.loading || feed.error ? (
+        <FeedState {...feed} />
+      ) : (
+        <>
+          <section className="card panel compare-select">
+            <label htmlFor="compare-search">Add a player</label>
+            <input
+              id="compare-search"
+              type="search"
+              placeholder="Search the roster…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={ids.length >= 4}
+            />
+            {ids.length >= 4 ? (
+              <p className="muted">
+                Four players selected. Remove one to add another.
+              </p>
+            ) : (
+              <div className="compare-options">
+                {available.map((player) => (
+                  <button
+                    className="btn-ghost"
+                    key={player.player_id}
+                    onClick={() => select([...ids, String(player.player_id)])}
+                  >
+                    {player.player_name}{' '}
+                    <span className="muted">{player.team}</span> +
+                  </button>
+                ))}
+                {!available.length && (
+                  <p className="muted">No matching players.</p>
+                )}
+              </div>
+            )}
+          </section>
+          {ids
+            .filter((id) => !players.some((p) => String(p.player_id) === id))
+            .map((id) => (
+              <p className="notice" key={id}>
+                Player {id} is unavailable.{' '}
+                <button
+                  className="btn-ghost"
+                  onClick={() => select(ids.filter((value) => value !== id))}
+                >
+                  Remove
+                </button>
+              </p>
+            ))}
+          {!compared.length ? (
+            <FeedState title="Start a comparison">
+              Choose a player above to see their season averages.
+            </FeedState>
+          ) : (
+            <>
+              <div className="compare-cards">
+                {compared.map((player, index) => (
+                  <article
+                    className="card panel comparison-player"
+                    key={player.player_id}
+                    style={{ '--player-color': colors[index] }}
+                  >
+                    <div className="section-heading">
+                      <p className="eyebrow">{player.team}</p>
+                      <button
+                        className="btn-ghost"
+                        aria-label={'Remove ' + player.player_name}
+                        onClick={() =>
+                          select(
+                            ids.filter((id) => id !== String(player.player_id)),
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <Link to={'/player/' + player.player_id}>
+                      <h2>{player.player_name}</h2>
+                    </Link>
+                    <label className="chart-toggle">
+                      <input
+                        type="checkbox"
+                        checked={!hidden.includes(String(player.player_id))}
+                        onChange={() =>
+                          setHidden((previous) =>
+                            previous.includes(String(player.player_id))
+                              ? previous.filter(
+                                  (id) => id !== String(player.player_id),
+                                )
+                              : [...previous, String(player.player_id)],
+                          )
+                        }
+                      />
+                      Show on chart
+                    </label>
+                  </article>
+                ))}
+              </div>
+              <section className="card panel radar-chart-panel">
+                <div className="section-heading">
+                  <h2>Performance radar</h2>
+                  <span className="muted">
+                    Relative to the selected players
+                  </span>
+                </div>
+                <RadarChart series={series} />
+                <p className="muted">
+                  Each axis is normalized to the highest value among the
+                  selected players. Missing stats appear as zero on the chart
+                  and as — in the table.
+                </p>
+              </section>
+              <section className="card panel">
+                <div className="table-wrap">
+                  <table>
+                    <caption>Season averages</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Statistic</th>
+                        {compared.map((p) => (
+                          <th key={p.player_id} scope="col">
+                            {p.player_name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['ppg', 'Points per game'],
+                        ['rpg', 'Rebounds per game'],
+                        ['apg', 'Assists per game'],
+                        ['fg_pct', 'Field goal %'],
+                      ].map(([key, label]) => (
+                        <tr key={key}>
+                          <th scope="row">{label}</th>
+                          {compared.map((p) => (
+                            <td key={p.player_id}>
+                              {formatStat(p[key], key === 'fg_pct' ? '%' : '')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </>
+          )}
+        </>
       )}
-
-      <footer className="footer">StaxNYC Predictor &bull; Compare Players</footer>
     </main>
   )
 }

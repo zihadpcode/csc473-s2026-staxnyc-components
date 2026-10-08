@@ -1,40 +1,31 @@
-import { supabase } from './supabase'
-
-export const TEST_PASSWORD = 'test123'
-
-function toEmail(usernameOrEmail) {
-  return usernameOrEmail.includes('@')
-    ? usernameOrEmail
-    : `${usernameOrEmail.trim().toLowerCase()}@local.test`
-}
-
-export async function signUp(username, displayName) {
-  const { data, error } = await supabase.auth.signUp({
-    email: toEmail(username),
-    password: TEST_PASSWORD,
-    options: { data: { display_name: displayName || username } },
+import { requireClient } from './supabase'
+export async function signUp(email, password, displayName) {
+  const { data, error } = await requireClient().auth.signUp({
+    email: email.trim(),
+    password,
+    options: { data: { display_name: displayName.trim() } },
   })
   if (error) throw error
   return data
 }
-
-export async function signIn(username, password = TEST_PASSWORD) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: toEmail(username),
+export async function signIn(email, password) {
+  const { data, error } = await requireClient().auth.signInWithPassword({
+    email: email.trim(),
     password,
   })
   if (error) throw error
   return data
 }
-
 export async function signOut() {
-  const { error } = await supabase.auth.signOut()
+  const { error } = await requireClient().auth.signOut()
   if (error) throw error
 }
-
 export async function getProfile(userId) {
-  const { data, error } = await supabase
-    .from('user_profiles').select('*').eq('id', userId).maybeSingle()
+  const { data, error } = await requireClient()
+    .from('user_profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
   if (error) throw error
   return data
 }
