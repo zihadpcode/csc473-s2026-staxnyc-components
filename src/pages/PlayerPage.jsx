@@ -1,89 +1,102 @@
-import { useParams, Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import PlayerHeader from '../components/player/PlayerHeader'
 import RecentGamesTable from '../components/player/RecentGamesTable'
 import PointsTrendChart from '../components/player/PointsTrendChart'
-import PredictionCard from '../components/player/PredictionCard'
+import FeedState from '../components/common/FeedState'
+import useResource from '../hooks/useResource'
+import { usePlayerStack } from '../hooks/usePlayerStack'
 import { getPlayerById, getPlayerGames } from '../lib/api'
-
+import { formatStat } from '../lib/playerUtils'
 export default function PlayerPage() {
   const { id } = useParams()
-  const [stats, setStats] = useState(null)
-  const [games, setGames] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, g] = await Promise.all([
-          getPlayerById(id),
-          getPlayerGames(id, 5),
-        ])
-        if (s) setStats(s)
-        if (g) setGames(g)
-      } catch (err) {
-        console.log('Error loading player:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [id])
-
-  if (loading) return (
-    <main className="container">
-      <p style={{ color: 'var(--muted)', padding: '4rem 0', textAlign: 'center' }}>Loading...</p>
-    </main>
-  )
-
-  if (!stats) return (
-    <main className="container">
-      <p style={{ color: 'var(--muted)', padding: '4rem 0', textAlign: 'center' }}>
-        Player not found. <Link to="/">Go home</Link>
-      </p>
-    </main>
-  )
-
+  const player = useResource((signal) => getPlayerById(id, signal), [id])
+  const games = useResource((signal) => getPlayerGames(id, 10, signal), [id])
+  const { ids, toggle } = usePlayerStack()
+  const saved = ids.includes(String(id))
+  if (player.loading || player.error)
+    return (
+      <main className="container">
+        <FeedState {...player} />
+      </main>
+    )
+  if (!player.data)
+    return (
+      <main className="container">
+        <FeedState title="Player not found">
+          <Link to="/players">Back to players →</Link>
+        </FeedState>
+      </main>
+    )
+  const stats = player.data
   return (
     <main className="container">
-      <section className="page-header">
-        <p className="breadcrumb">
-          <Link to="/" style={{ color: 'var(--muted)' }}>Players</Link> / <span>{stats.player_name}</span>
-        </p>
-      </section>
-
+      <div className="player-toolbar">
+        <Link className="text-link" to="/players">
+          ← All players
+        </Link>
+        <div>
+          <button
+            className="btn-ghost"
+            onClick={() => toggle(id)}
+            aria-pressed={saved}
+            disabled={!saved && ids.length >= 50}
+          >
+            {saved ? '★ Saved to stack' : '☆ Save to stack'}
+          </button>
+          <Link className="btn primary" to={'/compare?players=' + id}>
+            Compare player ↗
+          </Link>
+        </div>
+      </div>
       <section className="profile-layout">
         <PlayerHeader stats={stats} />
-
         <aside className="side-stack">
-          <PredictionCard prediction={null} />
           <section className="card panel">
-            <h3>Season Stats</h3>
+            <p className="eyebrow">SEASON CONTEXT</p>
+            <h2>The complete picture.</h2>
             <div className="matchup-list">
               {[
-                { title: 'Points Per Game', value: stats.ppg },
-                { title: 'Rebounds Per Game', value: stats.rpg },
-                { title: 'Assists Per Game', value: stats.apg },
-                { title: 'Field Goal %', value: stats.fg_pct + '%' },
-              ].map((item, i) => (
-                <div key={i} className="matchup-item">
-                  <p className="matchup-title">{item.title}</p>
-                  <span className="pill">{item.value}</span>
+                ['Games played', stats.games_played],
+                ['Minutes per game', stats.mpg],
+                ['Field goal %', stats.fg_pct],
+              ].map(([label, value]) => (
+                <div className="matchup-item" key={label}>
+                  <span>{label}</span>
+                  <strong>
+                    {formatStat(value, label === 'Field goal %' ? '%' : '')}
+                  </strong>
                 </div>
               ))}
             </div>
           </section>
+          <section className="card panel">
+            <p className="eyebrow">PROJECTIONS</p>
+            <h3>Prediction feed unavailable</h3>
+            <p className="muted">
+              The original repository has no connected prediction service.
+              Explore actual game logs below.
+            </p>
+          </section>
         </aside>
       </section>
-
-      {games.length > 0 && (
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">BEHIND THE AVERAGE</p>
+          <h2>Recent performance</h2>
+        </div>
+      </div>
+      {games.loading || games.error ? (
+        <FeedState {...games} />
+      ) : games.data?.length ? (
         <section className="lower-grid">
-          <PointsTrendChart games={games} avgPpg={stats.ppg} />
-          <RecentGamesTable games={games} />
+          <PointsTrendChart games={games.data} avgPpg={formatStat(stats.ppg)} />
+          <RecentGamesTable games={games.data} />
         </section>
+      ) : (
+        <FeedState title="No recent game logs">
+          Season statistics are available above.
+        </FeedState>
       )}
-
-      <footer className="footer">{stats.player_name} Player Profile</footer>
     </main>
   )
 }

@@ -1,94 +1,141 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import GameCard from '../components/live-games/GameCard'
+import PageHeading from '../components/common/PageHeading'
+import FeedState from '../components/common/FeedState'
 import { getLiveGames } from '../lib/api'
-
+import { localDateRange } from '../lib/playerUtils'
 export default function LiveGamesPage() {
-  const [games, setGames] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState('')
-
-  async function loadGames() {
-    try {
-      const today = new Date()
-      const todayStr = today.toISOString().slice(0, 10)
-      const dayAfter = new Date(today)
-      dayAfter.setDate(dayAfter.getDate() + 2)
-      const endStr = dayAfter.toISOString().slice(0, 10)
-      const data = await getLiveGames(todayStr, endStr)
-      setGames(data || [])
-      setLastUpdated(new Date().toLocaleTimeString())
-    } catch {
-      setLastUpdated(new Date().toLocaleTimeString())
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const [state, setState] = useState({
+    games: [],
+    loading: true,
+    refreshing: false,
+    error: '',
+    updated: null,
+  })
+  const refreshRef = useRef(null)
   useEffect(() => {
-    loadGames()
-    const interval = setInterval(loadGames, 10000)
-    return () => clearInterval(interval)
+    let active = true
+    let controller
+    let busy = false
+    async function load() {
+      if (busy) return
+      busy = true
+      controller = new AbortController()
+      setState((previous) => ({ ...previous, refreshing: true }))
+      const timer = setTimeout(() => controller.abort(), 12000)
+      try {
+        const [start, end] = localDateRange()
+        const games = await getLiveGames(start, end, controller.signal)
+        if (active)
+          setState({
+            games: games || [],
+            loading: false,
+            refreshing: false,
+            error: '',
+            updated: new Date(),
+          })
+      } catch (error) {
+        if (active)
+          setState((previous) => ({
+            ...previous,
+            loading: false,
+            refreshing: false,
+            error:
+              'Could not refresh the schedule. ' +
+              (error.message || 'Try again.'),
+          }))
+      } finally {
+        clearTimeout(timer)
+        busy = false
+      }
+    }
+    refreshRef.current = load
+    load()
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 15000)
+    return () => {
+      active = false
+      clearInterval(interval)
+      controller?.abort()
+      refreshRef.current = null
+    }
   }, [])
-
-  const liveGames = games.filter(g => (g.status || '').toLowerCase() === 'live')
-  const finalGames = games.filter(g => (g.status || '').toLowerCase() === 'final')
-  const scheduledGames = games.filter(g => (g.status || '').toLowerCase() === 'scheduled')
-
-  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-
-  if (loading) return (
-    <main className="container">
-      <p style={{ color: 'var(--muted)', padding: '4rem 0', textAlign: 'center' }}>Loading live games...</p>
-    </main>
-  )
-
-  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '1rem' }
-
+  const groups = [
+    ['live', 'Live now'],
+    ['scheduled', 'Coming up'],
+    ['final', 'Final'],
+    ['other', 'Other game statuses'],
+  ]
+  function matches(game, status) {
+    const value = (game.status || '').toLowerCase()
+    return status === 'other'
+      ? !['live', 'scheduled', 'final'].includes(value)
+      : status === value
+  }
   return (
     <main className="container">
-      <section className="page-header">
-        <p className="breadcrumb">League / <span>Live Games</span></p>
-      </section>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(1.25rem,2.3vw,1.65rem)', fontWeight: 800, marginBottom: '0.3rem' }}>Today's Games</h1>
-          <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{dateStr}</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {lastUpdated && <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Updated {lastUpdated}</span>}
-          <button onClick={loadGames} className="btn primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>Refresh</button>
-        </div>
-      </div>
-
-      {liveGames.length > 0 && (
-        <section style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--success)', letterSpacing: '0.1em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Live Now</h2>
-          <div style={grid}>{liveGames.map(g => <GameCard key={g.game_id} game={g} />)}</div>
-        </section>
+      <PageHeading
+        eyebrow="AROUND THE LEAGUE"
+        title="Game center."
+        action={
+          <button
+            className="btn primary"
+            onClick={() => refreshRef.current?.()}
+            disabled={state.refreshing}
+          >
+            {state.refreshing ? 'Refreshing…' : 'Refresh schedule ↻'}
+          </button>
+        }
+      >
+        {new Date().toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        })}{' '}
+        · Today's schedule in your local timezone.
+      </PageHeading>
+      {state.updated && (
+        <p className="result-count">
+          Last successful refresh: {state.updated.toLocaleTimeString()} · Feed
+          refreshes every 15 seconds while visible.
+        </p>
       )}
-
-      {scheduledGames.length > 0 && (
-        <section style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.1em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Scheduled</h2>
-          <div style={grid}>{scheduledGames.map(g => <GameCard key={g.game_id} game={g} />)}</div>
-        </section>
+      {state.error && state.games.length > 0 && (
+        <p className="notice" role="alert">
+          {state.error} Showing the last successful feed.
+        </p>
       )}
-
-      {finalGames.length > 0 && (
-        <section style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Final</h2>
-          <div style={grid}>{finalGames.map(g => <GameCard key={g.game_id} game={g} />)}</div>
-        </section>
+      {state.loading || (state.error && !state.games.length) ? (
+        <FeedState
+          loading={state.loading}
+          error={state.error}
+          retry={() => refreshRef.current?.()}
+        />
+      ) : !state.games.length ? (
+        <FeedState title="No games on the schedule">
+          The connected feed returned no games for today.
+        </FeedState>
+      ) : (
+        groups.map(([status, label]) => {
+          const games = state.games.filter((game) => matches(game, status))
+          return (
+            games.length > 0 && (
+              <section className="game-section" key={status}>
+                <div className="section-heading">
+                  <h2>{label}</h2>
+                  <span className="pill">{games.length}</span>
+                </div>
+                <div className="game-grid">
+                  {games.map((game) => (
+                    <GameCard key={game.game_id} game={game} />
+                  ))}
+                </div>
+              </section>
+            )
+          )
+        })
       )}
-
-      {games.length === 0 && (
-        <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-          <p style={{ color: 'var(--muted)' }}>No games scheduled for today.</p>
-        </div>
-      )}
-
-      <footer className="footer">StaxNYC Predictor - Live Games</footer>
     </main>
   )
 }
