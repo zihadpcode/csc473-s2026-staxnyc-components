@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  getFeaturedConfig, addFeaturedPlayer, removeFeaturedPlayer,
-  updateFeaturedPlayer, searchPlayers,
+  getFeaturedConfig,
+  addFeaturedPlayer,
+  removeFeaturedPlayer,
+  updateFeaturedPlayer,
+  searchPlayers,
+  reorderFeaturedPlayers,
 } from '../../lib/api'
 import FeaturedPlayerAdminRow from './FeaturedPlayerAdminRow'
 import PlayerPickerModal from '../common/PlayerPickerModal'
@@ -15,9 +19,11 @@ export default function FeaturedPlayersPanel() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
+  const searchVersion = useRef(0)
 
   async function refresh() {
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     try {
       setRows(await getFeaturedConfig())
     } catch (err) {
@@ -27,24 +33,38 @@ export default function FeaturedPlayersPanel() {
     }
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh()
+  }, [])
 
   async function handleSearch(q) {
+    const version = ++searchVersion.current
     setQuery(q)
-    if (!q.trim()) { setResults([]); return }
+    setResults([])
+    if (!q.trim()) {
+      setResults([])
+      return
+    }
     try {
-      setResults(await searchPlayers(q, 12))
+      const found = await searchPlayers(q, 12)
+      if (version === searchVersion.current) setResults(found)
     } catch (err) {
-      console.error(err)
+      if (version === searchVersion.current)
+        setError(err.message || 'Search is unavailable.')
     }
   }
 
   async function handlePick(playerId) {
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
-      const nextOrder = rows.length ? Math.max(...rows.map((r) => r.display_order)) + 1 : 1
+      const nextOrder = rows.length
+        ? Math.max(...rows.map((r) => r.display_order)) + 1
+        : 1
       await addFeaturedPlayer(playerId, nextOrder)
-      setPickerOpen(false); setQuery(''); setResults([])
+      setPickerOpen(false)
+      setQuery('')
+      setResults([])
       await refresh()
     } catch (err) {
       setError(err.message || 'Add failed')
@@ -54,10 +74,10 @@ export default function FeaturedPlayersPanel() {
   }
 
   async function swapOrder(a, b) {
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
-      await updateFeaturedPlayer(a.id, { display_order: b.display_order })
-      await updateFeaturedPlayer(b.id, { display_order: a.display_order })
+      await reorderFeaturedPlayers(a, b)
       await refresh()
     } catch (err) {
       setError(err.message || 'Reorder failed')
@@ -78,7 +98,8 @@ export default function FeaturedPlayersPanel() {
   }
 
   async function handleToggleActive(row) {
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
       await updateFeaturedPlayer(row.id, { active: !row.active })
       await refresh()
@@ -90,7 +111,8 @@ export default function FeaturedPlayersPanel() {
   }
 
   async function handleRemove(row) {
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
       await removeFeaturedPlayer(row.id)
       await refresh()
@@ -105,21 +127,42 @@ export default function FeaturedPlayersPanel() {
 
   return (
     <div className="card panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <h3>Featured Players</h3>
-        <button className="btn primary" onClick={() => setPickerOpen(true)} disabled={busy}>
+        <button
+          className="btn primary"
+          onClick={() => setPickerOpen(true)}
+          disabled={busy}
+        >
           + Add player
         </button>
       </div>
-      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.4rem' }}>
-        These appear on the homepage in the order shown. Hidden rows are skipped.
+      <p
+        style={{
+          color: 'var(--muted)',
+          fontSize: '0.85rem',
+          marginTop: '0.4rem',
+        }}
+      >
+        These appear on the homepage in the order shown. Hidden rows are
+        skipped.
       </p>
 
-      {error && <p className="auth-error" style={{ marginTop: '0.75rem' }}>{error}</p>}
+      {error && (
+        <p className="auth-error" style={{ marginTop: '0.75rem' }}>
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>Loading…</p>
-      ) : rows.length === 0 ? (
+      ) : error ? null : rows.length === 0 ? (
         <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>
           No featured players yet. Click <b>Add player</b> to start.
         </p>
@@ -148,7 +191,12 @@ export default function FeaturedPlayersPanel() {
           usedIds={usedIds}
           onSearch={handleSearch}
           onSelect={handlePick}
-          onClose={() => { setPickerOpen(false); setQuery(''); setResults([]) }}
+          onClose={() => {
+            searchVersion.current++
+            setPickerOpen(false)
+            setQuery('')
+            setResults([])
+          }}
         />
       )}
     </div>

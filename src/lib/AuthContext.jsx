@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import { getProfile } from './auth'
+import { getProfile, ensureMyProfile } from './auth'
 const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
     }
     let active = true
     setProfileState({ owner: user.id, data: null, loading: true, error: '' })
-    getProfile(user.id)
+    ensureMyProfile(user)
       .then((data) => {
         if (active)
           setProfileState({

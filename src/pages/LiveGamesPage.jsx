@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import GameCard from '../components/live-games/GameCard'
 import PageHeading from '../components/common/PageHeading'
 import FeedState from '../components/common/FeedState'
-import { getLiveGames } from '../lib/api'
+import { getLiveGames, getGamePredictions } from '../lib/api'
 import { localDateRange } from '../lib/playerUtils'
+import useResource from '../hooks/useResource'
 export default function LiveGamesPage() {
+  const [selectedDate, setSelectedDate] = useState(() => localDateRange()[0])
   const [state, setState] = useState({
     games: [],
     loading: true,
@@ -12,8 +14,20 @@ export default function LiveGamesPage() {
     error: '',
     updated: null,
   })
+  const gameIds = state.games.map((game) => String(game.game_id))
+  const predictions = useResource(
+    (signal) => getGamePredictions(gameIds, signal),
+    [gameIds.join(',')],
+  )
   const refreshRef = useRef(null)
   useEffect(() => {
+    setState({
+      games: [],
+      loading: true,
+      refreshing: false,
+      error: '',
+      updated: null,
+    })
     let active = true
     let controller
     let busy = false
@@ -24,7 +38,9 @@ export default function LiveGamesPage() {
       setState((previous) => ({ ...previous, refreshing: true }))
       const timer = setTimeout(() => controller.abort(), 12000)
       try {
-        const [start, end] = localDateRange()
+        const [start, end] = localDateRange(
+          new Date(selectedDate + 'T12:00:00'),
+        )
         const games = await getLiveGames(start, end, controller.signal)
         if (active)
           setState({
@@ -60,7 +76,7 @@ export default function LiveGamesPage() {
       controller?.abort()
       refreshRef.current = null
     }
-  }, [])
+  }, [selectedDate])
   const groups = [
     ['live', 'Live now'],
     ['scheduled', 'Coming up'],
@@ -68,7 +84,8 @@ export default function LiveGamesPage() {
     ['other', 'Other game statuses'],
   ]
   function matches(game, status) {
-    const value = (game.status || '').toLowerCase()
+    const raw = (game.status || '').toLowerCase()
+    const value = raw === 'upcoming' ? 'scheduled' : raw
     return status === 'other'
       ? !['live', 'scheduled', 'final'].includes(value)
       : status === value
@@ -88,13 +105,28 @@ export default function LiveGamesPage() {
           </button>
         }
       >
-        {new Date().toLocaleDateString('en-US', {
+        {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
         })}{' '}
-        · Today's schedule in your local timezone.
+        · Schedule in your local timezone.
       </PageHeading>
+      <label className="schedule-date">
+        Schedule date
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(event) => {
+            if (event.target.value) setSelectedDate(event.target.value)
+          }}
+        />
+      </label>
+      {predictions.error && state.games.length > 0 && (
+        <p className="notice">
+          Game predictions are unavailable. Scores and chat remain available.
+        </p>
+      )}
       {state.updated && (
         <p className="result-count">
           Last successful refresh: {state.updated.toLocaleTimeString()} · Feed
@@ -114,7 +146,7 @@ export default function LiveGamesPage() {
         />
       ) : !state.games.length ? (
         <FeedState title="No games on the schedule">
-          The connected feed returned no games for today.
+          The connected feed returned no games for the selected date.
         </FeedState>
       ) : (
         groups.map(([status, label]) => {
@@ -128,7 +160,22 @@ export default function LiveGamesPage() {
                 </div>
                 <div className="game-grid">
                   {games.map((game) => (
-                    <GameCard key={game.game_id} game={game} />
+                    <GameCard
+                      key={game.game_id}
+                      game={game}
+                      prediction={predictions.data?.find(
+                        (prediction) =>
+                          String(prediction.game_id) === String(game.game_id),
+                      )}
+                      onDelete={(id) =>
+                        setState((previous) => ({
+                          ...previous,
+                          games: previous.games.filter(
+                            (item) => item.game_id !== id,
+                          ),
+                        }))
+                      }
+                    />
                   ))}
                 </div>
               </section>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import {
   getMyChangeRequests,
@@ -21,15 +21,17 @@ export default function ProfilePage() {
     useAuth()
   const [requests, setRequests] = useState([])
   const [reqLoading, setReqLoading] = useState(true)
+  const [requestError, setRequestError] = useState('')
 
   async function refresh() {
     if (!user) return
     setReqLoading(true)
+    setRequestError('')
     try {
       const r = await getMyChangeRequests(user.id)
       setRequests(r)
     } catch (e) {
-      console.error(e)
+      setRequestError(e.message || 'Your change requests are unavailable.')
     } finally {
       setReqLoading(false)
     }
@@ -85,6 +87,12 @@ export default function ProfilePage() {
     <main className="container">
       <section className="page-header">
         <h1>Your Profile</h1>
+        <Link className="text-link" to={'/user/' + user.id}>
+          View your public profile ↗
+        </Link>
+        <Link className="text-link" to="/reset-password">
+          Change password ↗
+        </Link>
         <p className="subtitle" style={{ color: 'var(--muted)' }}>
           Profile changes are sent to an admin for approval before they go live.
         </p>
@@ -143,7 +151,11 @@ export default function ProfilePage() {
       {!isAdmin && (
         <section className="card panel" style={{ marginTop: '1.5rem' }}>
           <h3>Your requests</h3>
-          {reqLoading ? (
+          {requestError ? (
+            <p className="notice" role="alert">
+              {requestError}
+            </p>
+          ) : reqLoading ? (
             <p style={{ color: 'var(--muted)' }}>Loading…</p>
           ) : requests.length === 0 ? (
             <p style={{ color: 'var(--muted)' }}>No requests yet.</p>

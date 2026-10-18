@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import PageHeading from '../components/common/PageHeading'
 import FeedState from '../components/common/FeedState'
 import FeaturedPlayerCard from '../components/home/FeaturedPlayerCard'
@@ -9,7 +9,8 @@ import { getPlayerDirectory } from '../lib/api'
 import { selectPlayers } from '../lib/playerUtils'
 export default function PlayersPage({ savedOnly = false }) {
   const feed = useResource(getPlayerDirectory)
-  const [query, setQuery] = useState('')
+  const [params] = useSearchParams()
+  const [query, setQuery] = useState(params.get('search') || '')
   const [team, setTeam] = useState('All')
   const [sort, setSort] = useState('ppg')
   const { ids, storageError } = usePlayerStack()

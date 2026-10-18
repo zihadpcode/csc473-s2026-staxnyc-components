@@ -5,6 +5,8 @@ import PageHeading from '../components/common/PageHeading'
 import FeedState from '../components/common/FeedState'
 import useResource from '../hooks/useResource'
 import { getPlayerDirectory } from '../lib/api'
+import CompareAiSection from '../components/compare/CompareAiSection'
+import { comparisonMetrics } from '../lib/comparisonInsights'
 import { formatStat } from '../lib/playerUtils'
 const colors = ['#f47b40', '#9cbcf7', '#b5d49a', '#d9adf4']
 export default function ComparePage() {
@@ -15,6 +17,7 @@ export default function ComparePage() {
   const feed = useResource(getPlayerDirectory)
   const [query, setQuery] = useState('')
   const [hidden, setHidden] = useState([])
+  const [customColors, setCustomColors] = useState({})
   const players = feed.data || []
   const compared = ids
     .map((id) => players.find((p) => String(p.player_id) === id))
@@ -39,7 +42,7 @@ export default function ComparePage() {
   const series = compared.map((player, index) => ({
     playerId: player.player_id,
     name: player.player_name,
-    color: colors[index],
+    color: customColors[player.player_id] || colors[index],
     visible: !hidden.includes(String(player.player_id)),
     normValues: STAT_KEYS.map((key) => {
       const maximum = Math.max(...compared.map((p) => Number(p[key]) || 0), 1)
@@ -112,7 +115,10 @@ export default function ComparePage() {
                   <article
                     className="card panel comparison-player"
                     key={player.player_id}
-                    style={{ '--player-color': colors[index] }}
+                    style={{
+                      '--player-color':
+                        customColors[player.player_id] || colors[index],
+                    }}
                   >
                     <div className="section-heading">
                       <p className="eyebrow">{player.team}</p>
@@ -131,6 +137,30 @@ export default function ComparePage() {
                     <Link to={'/player/' + player.player_id}>
                       <h2>{player.player_name}</h2>
                     </Link>
+                    <label className="color-control">
+                      Chart color for {player.player_name}
+                      <input
+                        type="color"
+                        value={customColors[player.player_id] || colors[index]}
+                        onChange={(event) =>
+                          setCustomColors((previous) => ({
+                            ...previous,
+                            [player.player_id]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <button
+                      className="btn-ghost"
+                      onClick={() =>
+                        setCustomColors((previous) => ({
+                          ...previous,
+                          [player.player_id]: undefined,
+                        }))
+                      }
+                    >
+                      Reset color
+                    </button>
                     <label className="chart-toggle">
                       <input
                         type="checkbox"
@@ -158,6 +188,12 @@ export default function ComparePage() {
                   </span>
                 </div>
                 <RadarChart series={series} />
+                {series.every((item) => !item.visible) && (
+                  <p role="status" className="notice">
+                    All players are hidden. Turn on Show on chart to view a
+                    player.
+                  </p>
+                )}
                 <p className="muted">
                   Each axis is normalized to the highest value among the
                   selected players. Missing stats appear as zero on the chart
@@ -179,17 +215,15 @@ export default function ComparePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        ['ppg', 'Points per game'],
-                        ['rpg', 'Rebounds per game'],
-                        ['apg', 'Assists per game'],
-                        ['fg_pct', 'Field goal %'],
-                      ].map(([key, label]) => (
+                      {comparisonMetrics.map(([key, label]) => (
                         <tr key={key}>
                           <th scope="row">{label}</th>
                           {compared.map((p) => (
                             <td key={p.player_id}>
-                              {formatStat(p[key], key === 'fg_pct' ? '%' : '')}
+                              {formatStat(
+                                p[key],
+                                key.endsWith('pct') ? '%' : '',
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -198,6 +232,7 @@ export default function ComparePage() {
                   </table>
                 </div>
               </section>
+              <CompareAiSection players={compared} />
             </>
           )}
         </>

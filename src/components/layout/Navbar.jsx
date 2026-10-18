@@ -100,6 +100,9 @@ export default function Navbar() {
             </Link>
           )}
           {error && <p role="alert">{error}</p>}
+          <Link className="text-link motion-lab-link" to="/anim-demo">
+            Motion lab ↗
+          </Link>
           <small>NEW YORK · EVERY COURT</small>
         </div>
       </aside>

@@ -3,12 +3,21 @@ import FeaturedPlayerCard from '../components/home/FeaturedPlayerCard'
 import FeedState from '../components/common/FeedState'
 import useResource from '../hooks/useResource'
 import { usePlayerStack } from '../hooks/usePlayerStack'
-import { getPlayerDirectory } from '../lib/api'
+import { getPlayerDirectory, getFeaturedSelection } from '../lib/api'
+import PlayerSearchBar from '../components/search/PlayerSearchBar'
 import { selectPlayers } from '../lib/playerUtils'
 import { isConfigured } from '../lib/supabase'
 export default function HomePage() {
   const feed = useResource(getPlayerDirectory)
   const players = feed.data || []
+  const selection = useResource(getFeaturedSelection)
+  const featured = (selection.data || [])
+    .map((row) =>
+      players.find(
+        (player) => String(player.player_id) === String(row.player_id),
+      ),
+    )
+    .filter(Boolean)
   const { ids } = usePlayerStack()
   const leaders = selectPlayers(players).slice(0, 4)
   return (
@@ -63,6 +72,7 @@ export default function HomePage() {
           <span className="court-ball" />
         </div>
       </section>
+      <PlayerSearchBar />
       <div className="overview-metrics">
         <Link to="/players">
           <span>PLAYER DIRECTORY</span>
@@ -80,6 +90,35 @@ export default function HomePage() {
           <small>Eastern & western conferences ↗</small>
         </Link>
       </div>
+      <section className="home-player-section" aria-label="Featured lineup">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">CURATED BY THE STAX TEAM</p>
+            <h2>Featured lineup</h2>
+          </div>
+        </div>
+        {selection.loading ? (
+          <p role="status" className="muted">
+            Loading featured selections…
+          </p>
+        ) : selection.error ? (
+          <p className="notice">
+            Featured selections are unavailable. The player directory and
+            scoring leaders load independently.
+          </p>
+        ) : featured.length ? (
+          <div className="player-grid">
+            {featured.map((player) => (
+              <FeaturedPlayerCard key={player.player_id} player={player} />
+            ))}
+          </div>
+        ) : (
+          <p className="muted">
+            No active featured selections yet. Administrators can curate this
+            lineup from the admin page.
+          </p>
+        )}
+      </section>
       <section className="home-player-section">
         <div className="section-heading">
           <div>

@@ -1,21 +1,24 @@
-# Rebuild verification
+# Rebuild verification — October 18, 2026
 
 ## Scope
 
-The original personal StaxNYC component repository is rebuilt as a responsive basketball research workspace. Its Supabase table contract, standings data, radar, game cards, recent-games table, profile forms and admin components are reused. The app shell, overview, directory, saved stack, comparison, game center, data states and authentication forms are new implementations in the existing source structure.
+The rebuild now covers the functional source feature set, beyond the original personal component subset. Restored features include homepage search/curation, a line trend chart, player prediction API, rosters, connected standings, chat, game prediction explanations, public profiles, highlight controls, extended comparisons and the optional animation demo. Added improvements include a date-selectable schedule, password recovery, explicit data states and request-boundary validation.
 
-## Evidence
+See [FEATURE_AUDIT.md](FEATURE_AUDIT.md) for a feature-by-feature comparison, evidence and outstanding external requirements.
 
-- Production build succeeds with Vite 8 and React Router 7.
-- Four data-handling tests cover combined filters, sorting, missing-stat formatting, untrusted saved storage, and local calendar rollover.
-- Ten Chrome browser scenarios cover directory filters/sorting, saving/removal/reload, player profiles and comparison bookmarks, failed-feed retry, mobile navigation/overflow, primary routes, desktop/mobile screenshots, password payloads, stale-score preservation, the unconfigured production build, and preserving saved IDs during roster failure.
-- npm audit reports zero known vulnerabilities in the resolved dependency tree.
-- Desktop and mobile screenshots were inspected at 1440px and 390px. Screenshots use synthetic test players.
+## Verification
 
-## Integration limits
+- 17 model/data/API tests cover temporal prediction validation, insufficient/invalid/future data, API routing and deployment rewrite handling, verified-user checks, authoritative database stats, real SDK request shaping with intercepted responses, video URL parsing, missing-value/tie handling, sorting, saved storage and local date rollover.
+- 26 Chrome browser scenarios cover original and restored user flows, including featured curation, chart colors, predictions, connected standings/rosters, account recovery, profile creation/editing/review, highlight administration, chat sending and simulated realtime inserts, schedule-date changes/removal, mobile overflow and modal focus.
+- Production build and whitespace checks pass. Dependency audit reports no known runtime vulnerabilities.
+- Desktop/mobile previews are captured under ignored `test-results/`, using synthetic player and game records.
 
-The checkout has no production Supabase configuration. Browser data requests are intercepted with synthetic fixtures. The real database connection, authentication, profile provisioning, database authorization, feed update processes, and video records are not verified. No database schema or policy changes are included. The repository contains no connected prediction backend; projections remain unavailable.
+## Production limits
 
-New sign-ups use email/password and may require email confirmation. Previously created username-only test accounts require separate migration or recovery. Admin access still depends on the existing database role and row-level policies; UI gating is not database authorization.
+The real StaxNYC data connection, database authorization, sports-data sync jobs, email delivery, realtime setup and provider credentials are not verified. No production changes were made to those services. No real chat/email or paid AI request was sent by the tests.
 
-The original standings file remains available and is explicitly labeled as an undated repository snapshot. It is not presented as the current NBA standings.
+The new regression service is implemented and fixture-tested, with at least 20 valid completed game logs required. It is not the missing original 2023–24 training artifact. Its historical error range is not a calibrated confidence interval or proof of accuracy on real NBA games.
+
+Server code retains public-key/caller-token database authorization. AI requests require a verified user and use database-fetched records, with input limits, timeouts, output caps and an instance-local throttle; a public production deployment must also configure shared rate limits/provider budgets. Original multi-table profile approval is still two checked writes with a partial-success error; atomic review requires a separately authorized database transaction/RPC.
+
+Missing season-roster/standings tables fall back explicitly to directory records or the existing repository snapshot. Snapshot records have no verified season/update date. User-visible labels identify these limitations.

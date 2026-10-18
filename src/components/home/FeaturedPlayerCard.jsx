@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { usePlayerStack } from '../../hooks/usePlayerStack'
+import PlayerImage from '../common/PlayerImage'
+import { teamRosterPath } from '../../lib/teamBranding'
 import { formatStat } from '../../lib/playerUtils'
 export default function FeaturedPlayerCard({ player }) {
   const { ids, toggle } = usePlayerStack()
@@ -8,7 +10,12 @@ export default function FeaturedPlayerCard({ player }) {
   return (
     <article className="player-tile">
       <div className="tile-top">
-        <span className="team-label">{player.team || 'NBA'}</span>
+        <Link
+          className="team-label"
+          to={teamRosterPath(player.team) || '/standings'}
+        >
+          {player.team || 'NBA'}
+        </Link>
         <button
           className={'save-button' + (saved ? ' saved' : '')}
           onClick={() => toggle(id)}
@@ -21,11 +28,7 @@ export default function FeaturedPlayerCard({ player }) {
       </div>
       <Link to={'/player/' + id} className="tile-profile">
         <div className="player-monogram" aria-hidden="true">
-          {(player.player_name || '?')
-            .split(' ')
-            .map((word) => word[0])
-            .slice(0, 2)
-            .join('')}
+          <PlayerImage player={player} />
         </div>
         <p className="eyebrow">{player.position || 'PLAYER'}</p>
         <h3>{player.player_name}</h3>

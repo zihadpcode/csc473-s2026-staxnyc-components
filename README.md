@@ -1,10 +1,10 @@
 # StaxNYC — Basketball Intelligence
 
-A rebuilt basketball research workspace using the original repository's React components, Supabase data contract, standings dataset, game cards, charts, profile workflow, and admin tools.
+A responsive basketball research workspace built from the existing personal StaxNYC repository, with feature parity restored from the original prototype and newer team component files. The player images, team identity helpers, standings snapshot, game cards, charts, profile/admin workflows and animation demos are reused or adapted from those files.
 
-## Run locally
+## Run
 
-Requires Node.js 22.12 or newer.
+Requires Node.js 22.12 or newer and npm.
 
 ```sh
 npm ci
@@ -12,29 +12,45 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` to connect your existing Supabase project. The old `VITE_SUPABASE_KEY` anonymous-key setting remains supported. Without these values the site opens in Explore mode: navigation and the saved standings work, data screens explain the missing connection, and account forms are disabled. No fake NBA data is displayed.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for the existing StaxNYC database. Legacy `VITE_SUPABASE_ANON_KEY` and `VITE_SUPABASE_KEY` settings are supported. Missing settings open Explore mode: navigation, the saved standings snapshot, and the animation demo remain available; data screens explain the missing connection.
 
-## The workspace
+The development and preview servers run the same API handlers used by the Vercel deployment. `vercel.json` routes `/api/*` requests to a shared Node API and all application routes to the SPA. No deployment is performed by the test commands.
 
-- Overview: scoring leaders from the connected roster and shortcuts to research tools.
-- Players: full player directory, name search, team filtering, and stat sorting.
-- My stack: save up to 50 player IDs in this browser. Records and stats are read from the current connected roster. Unavailable saved records can be removed. The stack is shared across tabs in the same browser, not across accounts or devices.
-- Player profile: season stats and the last 10 game logs, loaded independently.
-- Compare: up to four players, distinct colors, chart visibility, raw-stat table, and bookmarkable selection in the URL.
-- Game center: today's feed, refresh/retry, visible-tab polling, and explicit stale-data errors.
-- Standings: original repository snapshot, with conference filters and team search. The original file has no season or update date and is not a live standings feed.
-- Highlights: videos from the existing database feed, with loading/error/empty states.
-- Accounts and administration: existing profile-change and featured-player workflows, with email/password authentication replacing the original shared test password.
+## Features
 
-The original repository did not contain a connected prediction API or model. The UI explicitly reports that limitation instead of inventing projections.
+- Homepage: keyboard-accessible player search, admin-curated featured lineup, scoring leaders and research shortcuts.
+- Player directory: name search, team filter, stat sorting and browser-saved player stack (up to 50 IDs, shared across tabs).
+- Player profiles: repository player images when available, season/shooting/defensive stats, ten recent games, an actual line chart with points/rebounds/assists selection, and a next-game points model.
+- Predictions: linear regression on preceding-five-game averages, chronological validation, validation error and historical error range, explicit insufficient-data state, and a five-minute model cache keyed to the source logs.
+- Comparisons: four players, six-stat radar, editable colors, visibility controls, nine-stat table, bookmarkable selection, deterministic comparison insights and optional authenticated AI explanation.
+- Game center: selectable schedule date, live/scheduled/final grouping, refresh, visible-tab polling, stale-result preservation, stored winner predictions and rationale, optional AI questions, realtime game chat, and admin removal/moderation controls.
+- Standings and rosters: connected standings with source metadata; explicitly labeled repository snapshot fallback; team roster routes with season-specific records and a labeled directory fallback.
+- Highlights: embedded videos, title/team filtering, admin add/replace and hidden-marker removal compatible with the existing sync process.
+- Accounts: email/password login/signup, profile creation, public profiles, direct bio editing, approval requests for name/avatar changes, password recovery and password updates.
+- Administration: profile request approval/rejection, featured-player add/reorder/show/hide/remove, and the moderation controls above.
+- Accessibility: responsive navigation, skip link, focus states, native modal focus trapping/Escape, reduced-motion support, and the existing optional animation demo.
 
-## Existing data contract
+The full comparison with the source feature set is in [docs/FEATURE_AUDIT.md](docs/FEATURE_AUDIT.md).
 
-Retained tables: `player_stats`, `player_games`, `live_games`, `game_highlights`, `featured_players`, `user_profiles`, and `profile_change_requests`. No production database changes are included.
+## Server configuration
 
-The existing deployment must enforce access with database row-level security. Browser admin checks control navigation only. Profile rows and roles still depend on the existing database provisioning workflow; the frontend does not grant itself an admin role or silently create missing profiles. New sign-ups may require email confirmation. Previous username-only test accounts cannot use the new email form without account migration or recovery outside this change.
+The API uses public Supabase credentials and forwards the signed-in user's bearer token, preserving database authorization. Optional `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` override the public browser settings on the server. Do not use a service-role key.
 
-## Validation
+Optional AI explanations retain the source project's DeepSeek integration, implemented through the current AI SDK. Set server-only `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL` to a currently available model in your provider account. Neither setting may use the `VITE_` prefix. AI requests require a verified account, use database-fetched stats, limit input/output, and have an instance-local request limit. Apply a shared hosting rate limit/provider budget before enabling a public production AI service. Statistical predictions and deterministic comparison insights do not require an AI provider.
+
+The original README described Flask and a model trained on 2023–24 data, but neither that backend nor the historical training artifact was present. The new Node API implements prediction serving from the supplied game logs. It does not claim historical training, a calibrated confidence probability, injury awareness, opponent adjustment, or verified production accuracy.
+
+## Existing database contract
+
+Core tables: `player_stats`, `player_games`, `live_games`, `game_highlights`, `featured_players`, `user_profiles`, `profile_change_requests`.
+
+Newer-team contracts also used: `nba_standings`, `nba_team_rosters`, `game_predictions`, `chat_messages`. Those tables and the external feed-sync jobs were managed outside the supplied repository. No production schema, policies, records, schedules, emails or chat messages were changed during this work.
+
+The existing database must enforce RLS and column restrictions: members must not edit roles or other people's profiles; only admins may curate/review/moderate; chat inserts must match the authenticated user; public profile reads must expose only intended fields. Realtime must be enabled for `chat_messages`. Profile creation attempts only the signed-in ID and display name and relies on database defaults/policies for role assignment. Password recovery requires the site's `/reset-password` URL in Supabase's allowed redirects and working email delivery.
+
+Profile approval preserves the source project's two database writes. Returned rows are checked and a partial-success error is shown if the profile update succeeds but request status fails. Production deployments needing atomic multi-table reviews should move this operation into an authorized database transaction/RPC. Featured reordering is now one atomic upsert request.
+
+## Verify
 
 ```sh
 npm test
@@ -42,10 +58,6 @@ npm run build
 npm run test:browser
 ```
 
-Browser tests require Google Chrome and use synthetic test records by intercepting Supabase requests. They verify directory filtering/sorting, watchlist persistence/removal, player-to-comparison navigation, bookmark restoration, failed-feed recovery, mobile navigation, and route rendering. They do not contact production or validate production authentication, database policies, feed freshness, highlight provenance, or prediction accuracy.
+The browser suite requires Google Chrome. It starts local development and unconfigured production-preview servers, intercepts database/auth/AI requests, simulates realtime messages, and captures desktop/mobile previews. Model/API tests exercise the Supabase SDK and AI SDK with intercepted upstream responses. No paid provider calls or real account messages are sent.
 
-A lockfile is committed for reproducible installs. The build tools and router were updated to patched releases. `src/legacy.css` retains styling for the original profile/admin components; `src/index.css` supplies the new responsive design.
-
-## Repository provenance
-
-Base: `zihadpcode/csc473-s2026-staxnyc-components`, commit `85ad787d9576b15b26b59129a9b5eedf4eba926e`. Work is isolated on `codex/staxnyc-rebuild`. Original components and data remain the implementation source; the team repositories have not been substituted for this personal project.
+See [docs/REVAMP.md](docs/REVAMP.md) for results and integration limits. Tests do not establish production authentication, database authorization, feed freshness, scheduled syncing, email delivery, or real-world prediction accuracy.

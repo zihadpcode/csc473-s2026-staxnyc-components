@@ -6,6 +6,10 @@ import Navbar from './components/layout/Navbar'
 import HomePage from './pages/HomePage'
 import RequireAdmin from './components/admin/RequireAdmin'
 import FeedState from './components/common/FeedState'
+const PasswordRecoveryPage = lazy(() => import('./pages/PasswordRecoveryPage'))
+const WembyAnimDemoPage = lazy(() => import('./pages/WembyAnimDemoPage'))
+const TeamRosterPage = lazy(() => import('./pages/TeamRosterPage'))
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'))
 const PlayerPage = lazy(() => import('./pages/PlayerPage'))
 const PlayersPage = lazy(() => import('./pages/PlayersPage'))
 const LiveGamesPage = lazy(() => import('./pages/LiveGamesPage'))
@@ -63,11 +67,25 @@ function Workspace() {
               <Route path="/" element={<HomePage />} />
               <Route path="/players" element={<PlayersPage />} />
               <Route path="/stack" element={<PlayersPage savedOnly />} />
+              <Route path="/anim-demo" element={<WembyAnimDemoPage />} />
+              <Route
+                path="/team/:teamSlug/roster"
+                element={<TeamRosterPage />}
+              />
+              <Route path="/user/:userId" element={<UserProfilePage />} />
               <Route path="/player/:id" element={<PlayerPage />} />
               <Route path="/live-games" element={<LiveGamesPage />} />
               <Route path="/standings" element={<StandingsPage />} />
               <Route path="/compare" element={<ComparePage />} />
               <Route path="/highlights" element={<HighlightsPage />} />
+              <Route
+                path="/forgot-password"
+                element={<PasswordRecoveryPage />}
+              />
+              <Route
+                path="/reset-password"
+                element={<PasswordRecoveryPage reset />}
+              />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/profile" element={<ProfilePage />} />

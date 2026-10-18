@@ -1,9 +1,11 @@
-const STAT_KEYS = ['ppg', 'rpg', 'apg', 'fg_pct']
+const STAT_KEYS = ['ppg', 'rpg', 'apg', 'fg_pct', 'spg', 'bpg']
 
 function statLabel(key) {
   if (key === 'ppg') return 'PPG'
   if (key === 'rpg') return 'RPG'
   if (key === 'apg') return 'APG'
+  if (key === 'spg') return 'SPG'
+  if (key === 'bpg') return 'BPG'
   return 'FG%'
 }
 
@@ -11,6 +13,8 @@ function statTooltip(key) {
   if (key === 'ppg') return 'Points per game'
   if (key === 'rpg') return 'Rebounds per game'
   if (key === 'apg') return 'Assists per game'
+  if (key === 'spg') return 'Steals per game'
+  if (key === 'bpg') return 'Blocks per game'
   return 'Field goal percentage'
 }
 
@@ -39,14 +43,32 @@ export default function RadarChart({ series }) {
       const pt = radarPoint(cx, cy, R, angle, rr)
       pts.push(pt.x.toFixed(2) + ',' + pt.y.toFixed(2))
     }
-    return <polygon key={'grid-' + idx} points={pts.join(' ')} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={1} />
+    return (
+      <polygon
+        key={'grid-' + idx}
+        points={pts.join(' ')}
+        fill="none"
+        stroke="rgba(255,255,255,0.1)"
+        strokeWidth={1}
+      />
+    )
   })
 
   const axisLines = []
   for (let i = 0; i < n; i++) {
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / n
     const outer = radarPoint(cx, cy, R, angle, 1)
-    axisLines.push(<line key={'axis-' + i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke="rgba(255,255,255,0.12)" strokeWidth={1} />)
+    axisLines.push(
+      <line
+        key={'axis-' + i}
+        x1={cx}
+        y1={cy}
+        x2={outer.x}
+        y2={outer.y}
+        stroke="rgba(255,255,255,0.12)"
+        strokeWidth={1}
+      />,
+    )
   }
 
   const labelEls = []
@@ -55,21 +77,33 @@ export default function RadarChart({ series }) {
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / n
     const pt = radarPoint(cx, cy, labelR, angle, 1)
     labelEls.push(
-      <text key={'lbl-' + i} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="middle" fill="var(--muted)" fontSize={11} fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <text
+        key={'lbl-' + i}
+        x={pt.x}
+        y={pt.y}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="var(--muted)"
+        fontSize={11}
+        fontWeight={700}
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >
         <title>{statTooltip(STAT_KEYS[i])}</title>
         {statLabel(STAT_KEYS[i])}
-      </text>
+      </text>,
     )
   }
 
-  const drawn = series.filter(s => s.visible && s.normValues && s.normValues.length === n)
+  const drawn = series.filter(
+    (s) => s.visible && s.normValues && s.normValues.length === n,
+  )
   drawn.sort((a, b) => {
     const sumA = a.normValues.reduce((s, v) => s + (v || 0), 0)
     const sumB = b.normValues.reduce((s, v) => s + (v || 0), 0)
     return sumA - sumB
   })
 
-  const playerPolys = drawn.map(ser => {
+  const playerPolys = drawn.map((ser) => {
     const pts = []
     for (let i = 0; i < n; i++) {
       const angle = -Math.PI / 2 + (2 * Math.PI * i) / n
@@ -78,7 +112,15 @@ export default function RadarChart({ series }) {
       pts.push(pt.x.toFixed(2) + ',' + pt.y.toFixed(2))
     }
     return (
-      <polygon key={'player-' + ser.playerId} points={pts.join(' ')} fill={ser.color} fillOpacity={0.22} stroke={ser.color} strokeWidth={2.5} strokeLinejoin="round">
+      <polygon
+        key={'player-' + ser.playerId}
+        points={pts.join(' ')}
+        fill={ser.color}
+        fillOpacity={0.22}
+        stroke={ser.color}
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+      >
         <title>{ser.name}</title>
       </polygon>
     )
@@ -86,7 +128,14 @@ export default function RadarChart({ series }) {
 
   return (
     <div className="radar-wrap radar-wrap--hero">
-      <svg className="radar-svg radar-svg--hero" width={size} height={size} viewBox={'0 0 ' + size + ' ' + size} role="img" aria-label="Radar chart comparing players">
+      <svg
+        className="radar-svg radar-svg--hero"
+        width={size}
+        height={size}
+        viewBox={'0 0 ' + size + ' ' + size}
+        role="img"
+        aria-label="Radar chart comparing players"
+      >
         {gridPolys}
         {axisLines}
         {playerPolys}

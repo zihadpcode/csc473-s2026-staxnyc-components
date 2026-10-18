@@ -1,47 +1,41 @@
-export default function PlayerPickerModal({ query, results, usedIds, onSearch, onSelect, onClose }) {
+import Dialog from './Dialog'
+export default function PlayerPickerModal({
+  query,
+  results,
+  usedIds,
+  onSearch,
+  onSelect,
+  onClose,
+}) {
   return (
-    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal card panel">
-        <div className="modal-header">
-          <div>
-            <div className="modal-title">Add a player</div>
-            <div className="modal-sub">Type a name, then pick a result to add.</div>
-          </div>
-          <button type="button" className="modal-close" onClick={onClose}>&times;</button>
-        </div>
-
-        <input
-          className="search-input"
-          value={query}
-          onChange={e => onSearch(e.target.value)}
-          placeholder="Search players..."
-          autoFocus
-        />
-
-        <div className="results">
-          {!query.trim() ? (
-            <p className="results-hint">Type to search players...</p>
-          ) : results.length === 0 ? (
-            <p className="results-hint">No matches found.</p>
-          ) : (
-            results.map(p => {
-              const disabled = !!usedIds[p.player_id]
-              return (
-                <button
-                  key={p.player_id}
-                  type="button"
-                  className={'result-item' + (disabled ? ' disabled' : '')}
-                  onClick={() => onSelect(p.player_id)}
-                  disabled={disabled}
-                >
-                  <span className="result-name">{p.player_name}</span>
-                  <span className="result-sub">{p.team}</span>
-                </button>
-              )
-            })
-          )}
-        </div>
+    <Dialog title="Add a player" onClose={onClose}>
+      <label htmlFor="admin-player-search">Search players</label>
+      <input
+        id="admin-player-search"
+        className="input"
+        value={query}
+        onChange={(event) => onSearch(event.target.value)}
+        placeholder="Type a player's name…"
+      />
+      <div className="results">
+        {!query.trim() ? (
+          <p className="muted">Type a name to search.</p>
+        ) : !results.length ? (
+          <p className="muted">No results to show.</p>
+        ) : (
+          results.map((player) => (
+            <button
+              className="result-item"
+              key={player.player_id}
+              disabled={Boolean(usedIds[player.player_id])}
+              onClick={() => onSelect(player.player_id)}
+            >
+              <span>{player.player_name}</span>
+              <span className="muted">{player.team}</span>
+            </button>
+          ))
+        )}
       </div>
-    </div>
+    </Dialog>
   )
 }

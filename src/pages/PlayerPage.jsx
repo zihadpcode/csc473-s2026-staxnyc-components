@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
+import PredictionCard from '../components/player/PredictionCard'
 import PlayerHeader from '../components/player/PlayerHeader'
 import RecentGamesTable from '../components/player/RecentGamesTable'
 import PointsTrendChart from '../components/player/PointsTrendChart'
@@ -48,6 +49,11 @@ export default function PlayerPage() {
           </Link>
         </div>
       </div>
+      {String(id) === '1641705' && (
+        <p className="notice">
+          <Link to="/anim-demo">Play the Wemby animation demos →</Link>
+        </p>
+      )}
       <section className="profile-layout">
         <PlayerHeader stats={stats} />
         <aside className="side-stack">
@@ -69,14 +75,7 @@ export default function PlayerPage() {
               ))}
             </div>
           </section>
-          <section className="card panel">
-            <p className="eyebrow">PROJECTIONS</p>
-            <h3>Prediction feed unavailable</h3>
-            <p className="muted">
-              The original repository has no connected prediction service.
-              Explore actual game logs below.
-            </p>
-          </section>
+          <PredictionCard playerId={id} />
         </aside>
       </section>
       <div className="section-heading">
