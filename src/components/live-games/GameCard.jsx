@@ -1,45 +1,117 @@
+import { useState } from 'react'
 import GameStatusBadge from './GameStatusBadge'
 import TeamScoreRow from './TeamScoreRow'
-
-function formatGameTime(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-}
-
-export default function GameCard({ game }) {
-  const status = (game.status || '').toLowerCase()
-  const isLive = status === 'live'
-  const isScheduled = status === 'scheduled' || status === 'upcoming'
-
+import LiveChatModal from '../live-chat/LiveChatModal'
+import AskAboutPredictionModal from '../predictions/AskAboutPredictionModal'
+import { useAuth } from '../../lib/AuthContext'
+import { deleteLiveGame } from '../../lib/api'
+export default function GameCard({ game, prediction, onDelete }) {
+  const { isAdmin } = useAuth(),
+    [chat, setChat] = useState(false),
+    [ask, setAsk] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('')
+  const status = (game.status || '').toLowerCase(),
+    probability = Number(prediction?.home_win_prob)
+  const validProbability =
+    prediction?.home_win_prob != null &&
+    Number.isFinite(probability) &&
+    probability >= 0 &&
+    probability <= 1
+  const pick = ['home', 'away'].includes(prediction?.prediction)
+    ? prediction.prediction
+    : validProbability
+      ? probability >= 0.5
+        ? 'home'
+        : 'away'
+      : null
+  const favored =
+    pick === 'home' ? game.home_team : pick === 'away' ? game.away_team : null
+  async function remove() {
+    if (
+      !window.confirm(
+        'Remove ' +
+          game.away_team +
+          ' at ' +
+          game.home_team +
+          ' from the schedule?',
+      )
+    )
+      return
+    setBusy(true)
+    setError('')
+    try {
+      await deleteLiveGame(game.game_id)
+      onDelete?.(game.game_id)
+    } catch (error) {
+      setError(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
-    <div
-      className="card"
-      style={{ padding: '1.2rem', transition: 'transform 0.18s ease,border-color 0.18s ease' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(91,140,255,0.35)'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = ''}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+    <article className="card game-card">
+      <div className="section-heading">
         <GameStatusBadge status={game.status} />
-        {isLive && game.quarter && (
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>
-            {game.quarter} {game.time_remaining}
-          </span>
-        )}
-        {isScheduled && game.game_date && (
-          <span style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>
-            {formatGameTime(game.game_date)}
-          </span>
-        )}
+        <span className="muted">
+          {status === 'live'
+            ? [game.quarter, game.time_remaining].filter(Boolean).join(' ')
+            : ['scheduled', 'upcoming'].includes(status) && game.game_date
+              ? new Date(game.game_date).toLocaleTimeString([], {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+              : ''}
+        </span>
       </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+      <div className="score-matchup">
         <TeamScoreRow teamName={game.away_team} score={game.away_score} />
-        <div style={{ textAlign: 'center', padding: '0 0.5rem' }}>
-          <p style={{ fontSize: '1.2rem', color: 'var(--muted)', fontWeight: 700 }}>vs</p>
-        </div>
+        <span className="muted">vs</span>
         <TeamScoreRow teamName={game.home_team} score={game.home_score} />
       </div>
-    </div>
+      {favored && (
+        <section className="game-prediction">
+          <p>
+            <strong>{favored}</strong> favored by the stored model
+            {validProbability
+              ? ' · ' +
+                (
+                  (pick === 'home' ? probability : 1 - probability) * 100
+                ).toFixed(1) +
+                '%'
+              : ''}
+          </p>
+          {prediction.rationale && (
+            <p className="muted">{prediction.rationale}</p>
+          )}
+          <button className="btn-ghost" onClick={() => setAsk(true)}>
+            Ask why?
+          </button>
+        </section>
+      )}
+      <div className="game-actions">
+        <button className="btn-ghost" onClick={() => setChat(true)}>
+          {status === 'live' ? 'Join live chat' : 'Open chat'}
+        </button>
+        {isAdmin && (
+          <button className="btn-ghost danger" disabled={busy} onClick={remove}>
+            {busy ? 'Removing…' : 'Remove game'}
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+      {chat && <LiveChatModal game={game} onClose={() => setChat(false)} />}{' '}
+      {ask && (
+        <AskAboutPredictionModal
+          game={game}
+          prediction={prediction}
+          onClose={() => setAsk(false)}
+        />
+      )}
+    </article>
   )
 }

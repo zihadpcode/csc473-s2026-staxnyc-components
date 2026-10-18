@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import {
-  getPendingRequests, getProfilesByIds,
-  approveChangeRequest, rejectChangeRequest,
+  getPendingRequests,
+  getProfilesByIds,
+  approveChangeRequest,
+  rejectChangeRequest,
 } from '../../lib/api'
 import PendingRequestRow from './PendingRequestRow'
 
@@ -15,7 +17,8 @@ export default function PendingRequestsPanel({ onCountChange }) {
   const [error, setError] = useState('')
 
   async function refresh() {
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     try {
       const reqs = await getPendingRequests()
       setRequests(reqs)
@@ -23,7 +26,9 @@ export default function PendingRequestsPanel({ onCountChange }) {
       const ids = [...new Set(reqs.map((r) => r.user_id))]
       const profiles = await getProfilesByIds(ids)
       const map = {}
-      profiles.forEach((p) => { map[p.id] = p.display_name })
+      profiles.forEach((p) => {
+        map[p.id] = p.display_name
+      })
       setNames(map)
     } catch (err) {
       setError(err.message || 'Failed to load')
@@ -32,10 +37,13 @@ export default function PendingRequestsPanel({ onCountChange }) {
     }
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh()
+  }, [])
 
   async function handleApprove(req) {
-    setBusyId(req.id); setError('')
+    setBusyId(req.id)
+    setError('')
     try {
       await approveChangeRequest(req, user.id)
       await refresh()
@@ -47,7 +55,8 @@ export default function PendingRequestsPanel({ onCountChange }) {
   }
 
   async function handleReject(req) {
-    setBusyId(req.id); setError('')
+    setBusyId(req.id)
+    setError('')
     try {
       await rejectChangeRequest(req.id, user.id)
       await refresh()
@@ -60,16 +69,28 @@ export default function PendingRequestsPanel({ onCountChange }) {
 
   return (
     <div className="card panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <h3>Pending Requests</h3>
-        <button className="btn-ghost" onClick={refresh} disabled={loading}>Refresh</button>
+        <button className="btn-ghost" onClick={refresh} disabled={loading}>
+          Refresh
+        </button>
       </div>
 
-      {error && <p className="auth-error" style={{ marginTop: '0.75rem' }}>{error}</p>}
+      {error && (
+        <p className="auth-error" style={{ marginTop: '0.75rem' }}>
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>Loading…</p>
-      ) : requests.length === 0 ? (
+      ) : error ? null : requests.length === 0 ? (
         <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>
           No pending requests. You’re all caught up.
         </p>
