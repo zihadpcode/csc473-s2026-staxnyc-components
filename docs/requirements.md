@@ -1,6 +1,6 @@
 # StaxNYC: requirements
 
-Phase 1. Written 19 November 2026. Status: awaiting approval.
+Phase 1. Written 19 November 2026. Status: approved by the user on 2026-11-22.
 
 ## Which tier these requirements assume
 

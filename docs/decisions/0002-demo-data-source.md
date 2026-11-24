@@ -1,6 +1,6 @@
 # 0002: Where the demo's player data comes from
 
-Date: 19 November 2026. Status: proposed, awaiting approval. This is the default taken for the brief's open question on data source (assumption 12).
+Date: 19 November 2026. Status: accepted 2026-11-22 (approved with the Phase 1 drafts). This is the default taken for the brief's open question on data source (assumption 12).
 
 ## Context
 
